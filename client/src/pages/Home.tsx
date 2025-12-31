@@ -9,6 +9,7 @@
   功能：
   - 基于用时的排行榜
   - 本地存储最佳成绩
+  - 快速查看道具
 */
 
 import { useEffect, useState } from "react";
@@ -110,7 +111,7 @@ export default function Home() {
   const initGame = () => {
     const gameCards: CardType[] = [];
     cardSymbols.forEach((symbol, index) => {
-      // 每个图案创建两张卡牧
+      // 每个图案创建两张卡牌
       gameCards.push({
         id: index * 2,
         symbol,
@@ -127,7 +128,7 @@ export default function Home() {
       });
     });
     
-    // 洗牧
+    // 洗牌
     const shuffled = gameCards.sort(() => Math.random() - 0.5);
     setCards(shuffled);
     setFlippedCards([]);
@@ -159,6 +160,7 @@ export default function Home() {
     if (flippedCards.includes(id)) return;
     if (cards[cards.findIndex(c => c.id === id)].isMatched) return;
     if (flippedCards.length >= 2) return;
+    if (isUsingPowerUp) return;
 
     const newFlipped = [...flippedCards, id];
     setFlippedCards(newFlipped);
@@ -219,7 +221,7 @@ export default function Home() {
     }
   }, [matches, gameStarted, elapsedTime]);
 
-  // 快速查看道具 - 2秒内随机顺序翻开所有未翻开的卡片
+  // 快速查看道具 - 快速随机顺序翻开卡片，然后先进先出地翻回去
   const usePowerUp = async () => {
     if (hasUsedPowerUp || isUsingPowerUp || isChecking) return;
     
@@ -229,12 +231,17 @@ export default function Home() {
     // 获取所有未翻开且未配对的卡片
     const unmatchedCards = cards.filter(card => !card.isFlipped && !card.isMatched);
     
+    if (unmatchedCards.length === 0) {
+      setIsUsingPowerUp(false);
+      toast.error("没有可以查看的卡片了");
+      return;
+    }
+    
     // 随机排序
     const shuffled = [...unmatchedCards].sort(() => Math.random() - 0.5);
     
-    // 计算每张卡片的显示时间
-    const showDuration = 500; // 每张卡片显示500ms
-    const totalTime = shuffled.length * showDuration;
+    // 每张卡片的显示时间 - 200ms
+    const showDuration = 200;
     
     // 依次翻开卡片
     for (let i = 0; i < shuffled.length; i++) {
@@ -245,17 +252,20 @@ export default function Home() {
       ));
     }
     
-    // 等待一下后全部翻回去
-    await new Promise(resolve => setTimeout(resolve, 500));
+    // 等待一下后，按照先进先出的顺序翻回去
+    await new Promise(resolve => setTimeout(resolve, 300));
     
-    setCards(prev => prev.map(card =>
-      !card.isMatched && unmatchedCards.some(c => c.id === card.id)
-        ? { ...card, isFlipped: false }
-        : card
-    ));
+    // 先翻开的卡片先翻回去
+    for (let i = 0; i < shuffled.length; i++) {
+      await new Promise(resolve => setTimeout(resolve, showDuration));
+      
+      setCards(prev => prev.map(card =>
+        card.id === shuffled[i].id ? { ...card, isFlipped: false } : card
+      ));
+    }
     
     setIsUsingPowerUp(false);
-    toast.success("道具已使用！", { duration: 2000 });
+    toast.success("道具已使用！", { duration: 1500 });
   };
 
   // 格式化时间
