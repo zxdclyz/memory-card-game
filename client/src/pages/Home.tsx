@@ -59,6 +59,8 @@ export default function Home() {
   const [playerName, setPlayerName] = useState("");
   const [scores, setScores] = useState<ScoreRecord[]>([]);
   const [showLeaderboard, setShowLeaderboard] = useState(false);
+  const [hasUsedPowerUp, setHasUsedPowerUp] = useState(false);
+  const [isUsingPowerUp, setIsUsingPowerUp] = useState(false);
 
   // 初始化排行榜数据
   useEffect(() => {
@@ -108,7 +110,7 @@ export default function Home() {
   const initGame = () => {
     const gameCards: CardType[] = [];
     cardSymbols.forEach((symbol, index) => {
-      // 每个图案创建两张卡牌
+      // 每个图案创建两张卡牧
       gameCards.push({
         id: index * 2,
         symbol,
@@ -125,7 +127,7 @@ export default function Home() {
       });
     });
     
-    // 洗牌
+    // 洗牧
     const shuffled = gameCards.sort(() => Math.random() - 0.5);
     setCards(shuffled);
     setFlippedCards([]);
@@ -136,6 +138,8 @@ export default function Home() {
     setStartTime(Date.now());
     setElapsedTime(0);
     setShowLeaderboard(false);
+    setHasUsedPowerUp(false);
+    setIsUsingPowerUp(false);
   };
 
   // 计时器
@@ -214,6 +218,45 @@ export default function Home() {
       }, 500);
     }
   }, [matches, gameStarted, elapsedTime]);
+
+  // 快速查看道具 - 2秒内随机顺序翻开所有未翻开的卡片
+  const usePowerUp = async () => {
+    if (hasUsedPowerUp || isUsingPowerUp || isChecking) return;
+    
+    setIsUsingPowerUp(true);
+    setHasUsedPowerUp(true);
+    
+    // 获取所有未翻开且未配对的卡片
+    const unmatchedCards = cards.filter(card => !card.isFlipped && !card.isMatched);
+    
+    // 随机排序
+    const shuffled = [...unmatchedCards].sort(() => Math.random() - 0.5);
+    
+    // 计算每张卡片的显示时间
+    const showDuration = 500; // 每张卡片显示500ms
+    const totalTime = shuffled.length * showDuration;
+    
+    // 依次翻开卡片
+    for (let i = 0; i < shuffled.length; i++) {
+      await new Promise(resolve => setTimeout(resolve, showDuration));
+      
+      setCards(prev => prev.map(card =>
+        card.id === shuffled[i].id ? { ...card, isFlipped: true } : card
+      ));
+    }
+    
+    // 等待一下后全部翻回去
+    await new Promise(resolve => setTimeout(resolve, 500));
+    
+    setCards(prev => prev.map(card =>
+      !card.isMatched && unmatchedCards.some(c => c.id === card.id)
+        ? { ...card, isFlipped: false }
+        : card
+    ));
+    
+    setIsUsingPowerUp(false);
+    toast.success("道具已使用！", { duration: 2000 });
+  };
 
   // 格式化时间
   const formatTime = (seconds: number) => {
@@ -350,6 +393,12 @@ export default function Home() {
               <div className="text-center">
                 <div className="text-xs font-bold text-gray-600 uppercase tracking-wider">用时</div>
                 <div className="text-3xl font-black mt-2" style={{ fontFamily: 'var(--font-space)' }}>{formatTime(elapsedTime)}</div>
+              </div>
+            </Card>
+            <Card className={`px-8 py-4 memphis-border ${hasUsedPowerUp ? 'bg-gray-200 opacity-50' : 'bg-white cursor-pointer hover:bg-gray-50'}`} onClick={usePowerUp}>
+              <div className="text-center">
+                <div className="text-xs font-bold text-gray-600 uppercase tracking-wider">道具</div>
+                <div className="text-2xl mt-2">{hasUsedPowerUp ? '✓ 已用' : '🔮'}</div>
               </div>
             </Card>
           </div>
