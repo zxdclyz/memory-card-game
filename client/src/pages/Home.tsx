@@ -176,10 +176,10 @@ export default function Home() {
 
       {/* 游戏标题 */}
       <div className="text-center mb-8">
-        <h1 className="text-5xl md:text-6xl font-black mb-2 memphis-border inline-block px-8 py-4 bg-white memphis-shadow transform -rotate-2">
+        <h1 className="text-6xl md:text-7xl font-black mb-3 memphis-border inline-block px-10 py-5 bg-white memphis-shadow transform -rotate-2" style={{ fontFamily: 'var(--font-fredoka)' }}>
           记忆翻牌
         </h1>
-        <p className="text-lg md:text-xl mt-6 font-medium" style={{ fontFamily: 'var(--font-poppins)' }}>
+        <p className="text-xl md:text-2xl mt-6 font-bold text-gray-800" style={{ fontFamily: 'var(--font-poppins)' }}>
           找到所有配对的卡牌！
         </p>
       </div>
@@ -190,8 +190,8 @@ export default function Home() {
           <Button
             onClick={initGame}
             size="lg"
-            className="text-2xl px-12 py-8 memphis-border memphis-shadow hover:translate-x-1 hover:translate-y-1 hover:shadow-none transition-all bg-[oklch(0.65_0.25_330)] text-white font-black"
-            style={{ fontFamily: 'var(--font-fredoka)' }}
+            className="text-2xl px-14 py-6 memphis-border memphis-shadow hover:translate-x-1 hover:translate-y-1 hover:shadow-none transition-all bg-[oklch(0.65_0.25_330)] text-white font-black rounded-none"
+            style={{ fontFamily: 'var(--font-fredoka)', letterSpacing: '0.05em' }}
           >
             开始游戏
           </Button>
@@ -202,23 +202,23 @@ export default function Home() {
       {gameStarted && (
         <>
           {/* 游戏信息栏 */}
-          <div className="flex gap-4 mb-6 flex-wrap justify-center">
-            <Card className="px-6 py-3 memphis-border bg-white">
+          <div className="flex gap-4 mb-8 flex-wrap justify-center">
+            <Card className="px-8 py-4 memphis-border bg-white">
               <div className="text-center">
-                <div className="text-sm font-medium text-muted-foreground">步数</div>
-                <div className="text-2xl font-black" style={{ fontFamily: 'var(--font-space)' }}>{moves}</div>
+                <div className="text-xs font-bold text-gray-600 uppercase tracking-wider">步数</div>
+                <div className="text-3xl font-black mt-2" style={{ fontFamily: 'var(--font-space)' }}>{moves}</div>
               </div>
             </Card>
-            <Card className="px-6 py-3 memphis-border bg-white">
+            <Card className="px-8 py-4 memphis-border bg-white">
               <div className="text-center">
-                <div className="text-sm font-medium text-muted-foreground">配对</div>
-                <div className="text-2xl font-black" style={{ fontFamily: 'var(--font-space)' }}>{matches}/{cardSymbols.length}</div>
+                <div className="text-xs font-bold text-gray-600 uppercase tracking-wider">配对</div>
+                <div className="text-3xl font-black mt-2" style={{ fontFamily: 'var(--font-space)' }}>{matches}/{cardSymbols.length}</div>
               </div>
             </Card>
-            <Card className="px-6 py-3 memphis-border bg-white">
+            <Card className="px-8 py-4 memphis-border bg-white">
               <div className="text-center">
-                <div className="text-sm font-medium text-muted-foreground">用时</div>
-                <div className="text-2xl font-black" style={{ fontFamily: 'var(--font-space)' }}>{formatTime(elapsedTime)}</div>
+                <div className="text-xs font-bold text-gray-600 uppercase tracking-wider">用时</div>
+                <div className="text-3xl font-black mt-2" style={{ fontFamily: 'var(--font-space)' }}>{formatTime(elapsedTime)}</div>
               </div>
             </Card>
           </div>
@@ -263,9 +263,9 @@ export default function Home() {
           {/* 重新开始按钮 */}
           <Button
             onClick={initGame}
-            variant="outline"
             size="lg"
-            className="memphis-border hover:bg-[oklch(0.85_0.25_90)] transition-all font-bold"
+            className="text-lg px-12 py-5 memphis-border memphis-shadow hover:translate-x-1 hover:translate-y-1 hover:shadow-none transition-all bg-[oklch(0.85_0.25_90)] text-white font-black rounded-none"
+            style={{ fontFamily: 'var(--font-fredoka)' }}
           >
             重新开始
           </Button>
