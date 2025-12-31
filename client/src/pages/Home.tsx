@@ -230,32 +230,32 @@ export default function Home() {
                 key={card.id}
                 onClick={() => handleCardClick(card.id)}
                 className={`
-                  aspect-square cursor-pointer memphis-border bg-white
+                  aspect-square cursor-pointer memphis-border
                   transition-all duration-200
-                  ${!card.isFlipped && !card.isMatched ? 'hover:-translate-y-1 active:translate-y-0' : ''}
+                  ${!card.isFlipped && !card.isMatched ? 'hover:-translate-y-1 active:translate-y-0 bg-white' : card.color}
+                  ${card.isMatched ? 'animate-explode' : ''}
                 `}
                 style={{
                   transform: `rotate(${(index % 3 - 1) * 2}deg)`,
+                  backgroundImage: card.isFlipped || card.isMatched ? 'none' : 'url(/images/card-back-pattern.png)',
+                  backgroundSize: 'cover',
+                  backgroundPosition: 'center'
                 }}
               >
-                <div className="w-full h-full flex items-center justify-center relative">
-                  {card.isFlipped || card.isMatched ? (
-                    <div className={`w-full h-full flex items-center justify-center ${card.color} ${card.isMatched ? 'animate-explode' : ''}`}>
-                      <span className="text-4xl md:text-5xl drop-shadow-lg">{card.symbol}</span>
-                    </div>
-                  ) : (
-                    <div 
-                      className="w-full h-full flex items-center justify-center"
-                      style={{
-                        backgroundImage: 'url(/images/card-back-pattern.png)',
-                        backgroundSize: 'cover',
-                        backgroundPosition: 'center'
-                      }}
-                    >
-                      <span className="text-5xl md:text-6xl font-black drop-shadow-lg" style={{ fontFamily: 'var(--font-fredoka)' }}>?</span>
-                    </div>
-                  )}
-                </div>
+                <span 
+                  className="drop-shadow-lg" 
+                  style={{ 
+                    fontFamily: 'var(--font-fredoka)',
+                    fontSize: '3.5rem',
+                    lineHeight: '1',
+                    height: '3.5rem',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center'
+                  }}
+                >
+                  {card.isFlipped || card.isMatched ? card.symbol : '?'}
+                </span>
               </div>
             ))}
           </div>
