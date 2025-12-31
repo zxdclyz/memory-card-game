@@ -175,7 +175,7 @@ export default function Home() {
       <div className="absolute bottom-20 right-10 w-12 h-12 rounded-full bg-[oklch(0.75_0.20_180)] animate-bounce opacity-10" style={{ animationDuration: '3s' }} />
 
       {/* 游戏标题 */}
-      <div className="text-center mb-8 animate-bounce-in">
+      <div className="text-center mb-8">
         <h1 className="text-5xl md:text-6xl font-black mb-2 memphis-border inline-block px-8 py-4 bg-white memphis-shadow transform -rotate-2">
           记忆翻牌
         </h1>
@@ -186,7 +186,7 @@ export default function Home() {
 
       {/* 游戏开始前 */}
       {!gameStarted && (
-        <div className="animate-bounce-in">
+        <div>
           <Button
             onClick={initGame}
             size="lg"
@@ -231,9 +231,8 @@ export default function Home() {
                 onClick={() => handleCardClick(card.id)}
                 className={`
                   aspect-square cursor-pointer memphis-border bg-white
-                  transition-all duration-300 hover:scale-105
-                  ${card.isFlipped || card.isMatched ? 'animate-bounce-in' : ''}
-                  ${!card.isFlipped && !card.isMatched ? 'hover:-translate-y-1' : ''}
+                  transition-all duration-200
+                  ${!card.isFlipped && !card.isMatched ? 'hover:-translate-y-1 active:translate-y-0' : ''}
                 `}
                 style={{
                   transform: `rotate(${(index % 3 - 1) * 2}deg)`,

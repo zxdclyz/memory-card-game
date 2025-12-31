@@ -198,18 +198,14 @@
 
 @keyframes explode {
   0% {
-    transform: scale(1);
     opacity: 1;
   }
   100% {
-    transform: scale(2);
     opacity: 0;
   }
 }
 
-.animate-bounce-in {
-  animation: bounce-in 0.6s cubic-bezier(0.68, -0.55, 0.265, 1.55);
-}
+
 
 .animate-wiggle {
   animation: wiggle 0.3s ease-in-out;
