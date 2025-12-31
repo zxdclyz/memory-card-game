@@ -176,7 +176,7 @@ export default function Home() {
 
       {/* 游戏标题 */}
       <div className="text-center mb-8">
-        <h1 className="text-6xl md:text-7xl font-black mb-3 memphis-border inline-block px-10 py-5 bg-white memphis-shadow transform -rotate-2" style={{ fontFamily: 'var(--font-fredoka)' }}>
+        <h1 className="text-6xl md:text-7xl font-black mb-3 memphis-border inline-block px-10 py-5 bg-white memphis-shadow transform -rotate-2" style={{ fontFamily: 'var(--font-poppins)' }}>
           记忆翻牌
         </h1>
         <p className="text-xl md:text-2xl mt-6 font-bold text-gray-800" style={{ fontFamily: 'var(--font-poppins)' }}>
@@ -191,7 +191,7 @@ export default function Home() {
             onClick={initGame}
             size="lg"
             className="text-2xl px-14 py-6 memphis-border memphis-shadow hover:translate-x-1 hover:translate-y-1 hover:shadow-none transition-all bg-[oklch(0.65_0.25_330)] text-white font-black rounded-none"
-            style={{ fontFamily: 'var(--font-fredoka)', letterSpacing: '0.05em' }}
+            style={{ fontFamily: 'var(--font-poppins)', letterSpacing: '0.05em' }}
           >
             开始游戏
           </Button>
@@ -265,7 +265,7 @@ export default function Home() {
             onClick={initGame}
             size="lg"
             className="text-lg px-12 py-5 memphis-border memphis-shadow hover:translate-x-1 hover:translate-y-1 hover:shadow-none transition-all bg-[oklch(0.85_0.25_90)] text-white font-black rounded-none"
-            style={{ fontFamily: 'var(--font-fredoka)' }}
+            style={{ fontFamily: 'var(--font-poppins)' }}
           >
             重新开始
           </Button>
