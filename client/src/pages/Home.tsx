@@ -44,7 +44,6 @@ export default function Home() {
   const [gameStarted, setGameStarted] = useState(false);
   const [startTime, setStartTime] = useState<number>(0);
   const [elapsedTime, setElapsedTime] = useState(0);
-  const [flipAnimations, setFlipAnimations] = useState<Set<number>>(new Set());
 
   // 初始化游戏
   const initGame = () => {
@@ -76,7 +75,6 @@ export default function Home() {
     setGameStarted(true);
     setStartTime(Date.now());
     setElapsedTime(0);
-    setFlipAnimations(new Set());
   };
 
   // 计时器
@@ -99,9 +97,6 @@ export default function Home() {
 
     const newFlipped = [...flippedCards, id];
     setFlippedCards(newFlipped);
-
-    // 添加翻转动画
-    setFlipAnimations(prev => new Set(Array.from(prev).concat([id])));
 
     // 翻转卡牌
     setCards(prev => prev.map(card => 
@@ -128,7 +123,6 @@ export default function Home() {
           setMatches(prev => prev + 1);
           setFlippedCards([]);
           setIsChecking(false);
-          setFlipAnimations(new Set());
           toast.success("太棒了！配对成功！", {
             duration: 1500,
           });
@@ -143,7 +137,6 @@ export default function Home() {
           ));
           setFlippedCards([]);
           setIsChecking(false);
-          setFlipAnimations(new Set());
         }, 1000);
       }
     }
@@ -182,25 +175,11 @@ export default function Home() {
       <div className="absolute bottom-20 right-10 w-12 h-12 rounded-full bg-[oklch(0.75_0.20_180)] animate-bounce opacity-10" style={{ animationDuration: '3s' }} />
 
       {/* 游戏标题 */}
-      <div className="text-center mb-8 relative">
-        <div className="inline-block relative">
-          <h1 
-            className="text-6xl md:text-8xl font-black mb-2 text-transparent bg-clip-text" 
-            style={{
-              fontFamily: "'Playfair Display', serif",
-              backgroundImage: 'linear-gradient(135deg, oklch(0.65_0.25_330) 0%, oklch(0.75_0.20_180) 50%, oklch(0.85_0.25_90) 100%)',
-              letterSpacing: '-0.02em',
-              WebkitBackgroundClip: 'text',
-              WebkitTextFillColor: 'transparent',
-              backgroundClip: 'text',
-              filter: 'drop-shadow(4px 4px 0px oklch(0.65_0.25_330)) drop-shadow(8px 8px 0px rgba(0,0,0,0.1))'
-            }}
-          >
-            记忆翻牌
-          </h1>
-          <div className="absolute -bottom-4 left-0 right-0 h-1 bg-gradient-to-r from-[oklch(0.65_0.25_330)] via-[oklch(0.75_0.20_180)] to-[oklch(0.85_0.25_90)]" />
-        </div>
-        <p className="text-lg md:text-xl mt-8 font-medium" style={{ fontFamily: 'var(--font-poppins)' }}>
+      <div className="text-center mb-8">
+        <h1 className="text-5xl md:text-6xl font-black mb-2 memphis-border inline-block px-8 py-4 bg-white memphis-shadow transform -rotate-2">
+          记忆翻牌
+        </h1>
+        <p className="text-lg md:text-xl mt-6 font-medium" style={{ fontFamily: 'var(--font-poppins)' }}>
           找到所有配对的卡牌！
         </p>
       </div>
@@ -208,20 +187,14 @@ export default function Home() {
       {/* 游戏开始前 */}
       {!gameStarted && (
         <div>
-          <button
+          <Button
             onClick={initGame}
-            className="relative text-2xl px-16 py-6 font-black text-white overflow-hidden group transition-all duration-200"
+            size="lg"
+            className="text-2xl px-12 py-8 memphis-border memphis-shadow hover:translate-x-1 hover:translate-y-1 hover:shadow-none transition-all bg-[oklch(0.65_0.25_330)] text-white font-black"
             style={{ fontFamily: 'var(--font-fredoka)' }}
           >
-            {/* 背景渐变 */}
-            <div className="absolute inset-0 bg-gradient-to-r from-[oklch(0.65_0.25_330)] via-[oklch(0.75_0.20_180)] to-[oklch(0.65_0.25_330)] group-hover:via-[oklch(0.85_0.25_90)] transition-all duration-300" />
-            {/* 粗黑边框 */}
-            <div className="absolute inset-0 border-4 border-black" />
-            {/* 阴影效果 */}
-            <div className="absolute top-1 left-1 right-0 bottom-0 border-4 border-black opacity-20" />
-            {/* 文字 */}
-            <span className="relative z-10 block group-hover:translate-x-1 group-hover:translate-y-1 transition-transform duration-100">开始游戏</span>
-          </button>
+            开始游戏
+          </Button>
         </div>
       )}
 
@@ -251,7 +224,7 @@ export default function Home() {
           </div>
 
           {/* 卡牌网格 */}
-          <div className="grid grid-cols-4 gap-3 md:gap-4 max-w-md mx-auto mb-6" style={{ perspective: '1000px' }}>
+          <div className="grid grid-cols-4 gap-3 md:gap-4 max-w-md mx-auto mb-6">
             {cards.map((card, index) => (
               <div
                 key={card.id}
@@ -261,14 +234,12 @@ export default function Home() {
                   transition-all duration-200
                   ${!card.isFlipped && !card.isMatched ? 'hover:-translate-y-1 active:translate-y-0 bg-white' : card.color}
                   ${card.isMatched ? 'animate-explode' : ''}
-                  ${flipAnimations.has(card.id) ? 'animate-card-flip' : ''}
                 `}
                 style={{
                   transform: `rotate(${(index % 3 - 1) * 2}deg)`,
                   backgroundImage: card.isFlipped || card.isMatched ? 'none' : 'url(/images/card-back-pattern.png)',
                   backgroundSize: 'cover',
-                  backgroundPosition: 'center',
-                  transformStyle: 'preserve-3d'
+                  backgroundPosition: 'center'
                 }}
               >
                 <span 
@@ -290,20 +261,14 @@ export default function Home() {
           </div>
 
           {/* 重新开始按钮 */}
-          <button
+          <Button
             onClick={initGame}
-            className="relative px-12 py-4 font-black text-white overflow-hidden group transition-all duration-200"
-            style={{ fontFamily: 'var(--font-fredoka)' }}
+            variant="outline"
+            size="lg"
+            className="memphis-border hover:bg-[oklch(0.85_0.25_90)] transition-all font-bold"
           >
-            {/* 背景渐变 */}
-            <div className="absolute inset-0 bg-gradient-to-r from-[oklch(0.85_0.25_90)] via-[oklch(0.65_0.25_330)] to-[oklch(0.75_0.20_180)] group-hover:via-[oklch(0.75_0.20_180)] transition-all duration-300" />
-            {/* 粗黑边框 */}
-            <div className="absolute inset-0 border-3 border-black" />
-            {/* 阴影效果 */}
-            <div className="absolute top-1 left-1 right-0 bottom-0 border-3 border-black opacity-20" />
-            {/* 文字 */}
-            <span className="relative z-10 block group-hover:translate-x-1 group-hover:translate-y-1 transition-transform duration-100">重新开始</span>
-          </button>
+            重新开始
+          </Button>
         </>
       )}
     </div>
