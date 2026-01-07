@@ -62,6 +62,8 @@ export default function Home() {
   const [showLeaderboard, setShowLeaderboard] = useState(false);
   const [hasUsedPowerUp, setHasUsedPowerUp] = useState(false);
   const [isUsingPowerUp, setIsUsingPowerUp] = useState(false);
+  const [hasUsedAutoMatch, setHasUsedAutoMatch] = useState(false);
+  const [hasUsedRandomShow, setHasUsedRandomShow] = useState(false);
 
   // 初始化排行榜数据
   useEffect(() => {
@@ -141,6 +143,8 @@ export default function Home() {
     setShowLeaderboard(false);
     setHasUsedPowerUp(false);
     setIsUsingPowerUp(false);
+    setHasUsedAutoMatch(false);
+    setHasUsedRandomShow(false);
   };
 
   // 计时器
@@ -221,7 +225,7 @@ export default function Home() {
     }
   }, [matches, gameStarted, elapsedTime]);
 
-  // 快速查看道具 - 快速随机顺序翻开卡片，然后先进先出地翻回去
+  // 快速查看道具 - 随机顺序翻开卡片，每张卡片独立计时后自动翻回去
   const usePowerUp = async () => {
     if (hasUsedPowerUp || isUsingPowerUp || isChecking) return;
     
@@ -237,35 +241,131 @@ export default function Home() {
       return;
     }
     
+    // 立即显示提示，不阻塞后续操作
+    toast.success("道具已使用！", { duration: 1500 });
+    
     // 随机排序
     const shuffled = [...unmatchedCards].sort(() => Math.random() - 0.5);
     
-    // 每张卡片的显示时间 - 200ms
-    const showDuration = 200;
+    // 每张卡片翻开的间隔 - 150ms
+    const flipInterval = 150;
+    // 每张卡片显示的时间 - 1000ms
+    const displayDuration = 1000;
     
     // 依次翻开卡片
     for (let i = 0; i < shuffled.length; i++) {
-      await new Promise(resolve => setTimeout(resolve, showDuration));
+      await new Promise(resolve => setTimeout(resolve, flipInterval));
       
       setCards(prev => prev.map(card =>
         card.id === shuffled[i].id ? { ...card, isFlipped: true } : card
       ));
+      
+      // 每张卡片独立计时，显示一段时间后自动翻回去
+      const cardId = shuffled[i].id;
+      setTimeout(() => {
+        setCards(prev => prev.map(card =>
+          card.id === cardId && !card.isMatched ? { ...card, isFlipped: false } : card
+        ));
+      }, displayDuration);
     }
     
-    // 等待一下后，按照先进先出的顺序翻回去
+    // 只需短暂等待，让用户可以快速继续操作
     await new Promise(resolve => setTimeout(resolve, 300));
     
-    // 先翻开的卡片先翻回去
-    for (let i = 0; i < shuffled.length; i++) {
-      await new Promise(resolve => setTimeout(resolve, showDuration));
-      
-      setCards(prev => prev.map(card =>
-        card.id === shuffled[i].id ? { ...card, isFlipped: false } : card
-      ));
+    setIsUsingPowerUp(false);
+  };
+
+  // 自动配对道具 - 自动找到并匹配一对卡片
+  const useAutoMatch = () => {
+    if (hasUsedAutoMatch || isUsingPowerUp || isChecking) return;
+    
+    // 获取所有未配对的卡片
+    const unmatchedCards = cards.filter(card => !card.isMatched);
+    
+    if (unmatchedCards.length === 0) {
+      toast.error("没有可以配对的卡片了");
+      return;
     }
     
-    setIsUsingPowerUp(false);
-    toast.success("道具已使用！", { duration: 1500 });
+    // 找到第一对匹配的卡片
+    const matchPair = unmatchedCards.find((card, index) => {
+      return unmatchedCards.slice(index + 1).some(c => c.symbol === card.symbol);
+    });
+    
+    if (!matchPair) {
+      toast.error("没有可以配对的卡片了");
+      return;
+    }
+    
+    // 找到配对的另一张
+    const pairCard = unmatchedCards.find(c => c.symbol === matchPair.symbol && c.id !== matchPair.id);
+    
+    if (!pairCard) return;
+    
+    setHasUsedAutoMatch(true);
+    setIsUsingPowerUp(true);
+    
+    // 先翻开两张卡片
+    setCards(prev => prev.map(card =>
+      card.id === matchPair.id || card.id === pairCard.id
+        ? { ...card, isFlipped: true }
+        : card
+    ));
+    
+    toast.success("✨ 自动配对成功！", { duration: 1500 });
+    
+    // 短暂延迟后标记为已匹配
+    setTimeout(() => {
+      setCards(prev => prev.map(card =>
+        card.id === matchPair.id || card.id === pairCard.id
+          ? { ...card, isMatched: true }
+          : card
+      ));
+      setMatches(prev => prev + 1);
+      setIsUsingPowerUp(false);
+    }, 800);
+  };
+
+  // 随机展示两张卡牌道具 - 随机翻开两张不同的卡片且保持翻开
+  const useRandomShow = () => {
+    if (hasUsedRandomShow || isUsingPowerUp || isChecking) return;
+    
+    // 获取所有未翻开且未配对的卡片
+    const availableCards = cards.filter(card => !card.isFlipped && !card.isMatched);
+    
+    if (availableCards.length < 2) {
+      toast.error("没有足够的卡片可以展示");
+      return;
+    }
+    
+    // 随机选择两张不同符号的卡片
+    const shuffled = [...availableCards].sort(() => Math.random() - 0.5);
+    let selectedCards: CardType[] = [];
+    
+    // 尽量选择不同符号的卡片
+    for (const card of shuffled) {
+      if (selectedCards.length === 0) {
+        selectedCards.push(card);
+      } else if (selectedCards.length === 1 && card.symbol !== selectedCards[0].symbol) {
+        selectedCards.push(card);
+        break;
+      }
+    }
+    
+    // 如果没找到不同符号的，就随机选两张
+    if (selectedCards.length < 2) {
+      selectedCards = shuffled.slice(0, 2);
+    }
+    
+    setHasUsedRandomShow(true);
+    toast.success("👀 随机展示两张卡片！", { duration: 1500 });
+    
+    // 翻开选中的卡片
+    setCards(prev => prev.map(card =>
+      selectedCards.some(c => c.id === card.id)
+        ? { ...card, isFlipped: true }
+        : card
+    ));
   };
 
   // 格式化时间
@@ -341,7 +441,7 @@ export default function Home() {
       )}
 
       {/* 排行榜详情页 */}
-      {showLeaderboard && !gameStarted && (
+      {showLeaderboard && (gameEnded || !gameStarted) && (
         <div className="text-center max-w-2xl mx-auto">
           <h1 className="text-5xl md:text-6xl font-black mb-6 memphis-border inline-block px-8 py-4 bg-white memphis-shadow" style={{ fontFamily: 'var(--font-poppins)' }}>
             🏆 排行榜
@@ -361,9 +461,14 @@ export default function Home() {
             </div>
           </Card>
 
-          <div className="flex gap-4 justify-center">
+          <div className="flex gap-4 justify-center flex-wrap">
             <Button
-              onClick={() => setShowLeaderboard(false)}
+              onClick={() => {
+                setShowLeaderboard(false);
+                if (gameEnded) {
+                  setGameEnded(false);
+                }
+              }}
               size="lg"
               className="text-lg px-12 py-5 memphis-border memphis-shadow hover:translate-x-1 hover:translate-y-1 hover:shadow-none transition-all bg-[oklch(0.75_0.20_180)] text-white font-black rounded-none"
               style={{ fontFamily: 'var(--font-poppins)' }}
@@ -385,8 +490,8 @@ export default function Home() {
       {/* 游戏进行中 */}
       {gameStarted && !gameEnded && (
         <>
-          {/* 游戏信息栏 */}
-          <div className="flex gap-4 mb-8 flex-wrap justify-center">
+          {/* 游戏统计信息 */}
+          <div className="flex gap-4 mb-4 flex-wrap justify-center">
             <Card className="px-8 py-4 memphis-border bg-white">
               <div className="text-center">
                 <div className="text-xs font-bold text-gray-600 uppercase tracking-wider">步数</div>
@@ -405,12 +510,56 @@ export default function Home() {
                 <div className="text-3xl font-black mt-2" style={{ fontFamily: 'var(--font-space)' }}>{formatTime(elapsedTime)}</div>
               </div>
             </Card>
-            <Card className={`px-8 py-4 memphis-border ${hasUsedPowerUp ? 'bg-gray-200 opacity-50' : 'bg-white cursor-pointer hover:bg-gray-50'}`} onClick={usePowerUp}>
-              <div className="text-center">
-                <div className="text-xs font-bold text-gray-600 uppercase tracking-wider">道具</div>
-                <div className="text-2xl mt-2">{hasUsedPowerUp ? '✓ 已用' : '🔮'}</div>
-              </div>
-            </Card>
+          </div>
+
+          {/* 道具栏 */}
+          <div className="mb-8">
+            <div className="text-center mb-3">
+              <span className="text-sm font-black text-gray-700 uppercase tracking-wider px-4 py-1 bg-white memphis-border inline-block" style={{ fontFamily: 'var(--font-poppins)' }}>
+                🎮 道具
+              </span>
+            </div>
+            <div className="flex gap-3 justify-center flex-wrap">
+              <Card 
+                className={`px-6 py-3 memphis-border transition-all ${
+                  hasUsedPowerUp 
+                    ? 'bg-gray-200 opacity-50 cursor-not-allowed' 
+                    : 'bg-white cursor-pointer hover:bg-gray-50 hover:-translate-y-1 active:translate-y-0'
+                }`} 
+                onClick={usePowerUp}
+              >
+                <div className="text-center">
+                  <div className="text-3xl mb-1">{hasUsedPowerUp ? '✓' : '🔮'}</div>
+                  <div className="text-xs font-bold text-gray-600">快速查看</div>
+                </div>
+              </Card>
+              <Card 
+                className={`px-6 py-3 memphis-border transition-all ${
+                  hasUsedAutoMatch 
+                    ? 'bg-gray-200 opacity-50 cursor-not-allowed' 
+                    : 'bg-white cursor-pointer hover:bg-gray-50 hover:-translate-y-1 active:translate-y-0'
+                }`} 
+                onClick={useAutoMatch}
+              >
+                <div className="text-center">
+                  <div className="text-3xl mb-1">{hasUsedAutoMatch ? '✓' : '✨'}</div>
+                  <div className="text-xs font-bold text-gray-600">自动配对</div>
+                </div>
+              </Card>
+              <Card 
+                className={`px-6 py-3 memphis-border transition-all ${
+                  hasUsedRandomShow 
+                    ? 'bg-gray-200 opacity-50 cursor-not-allowed' 
+                    : 'bg-white cursor-pointer hover:bg-gray-50 hover:-translate-y-1 active:translate-y-0'
+                }`} 
+                onClick={useRandomShow}
+              >
+                <div className="text-center">
+                  <div className="text-3xl mb-1">{hasUsedRandomShow ? '✓' : '👀'}</div>
+                  <div className="text-xs font-bold text-gray-600">随机展示</div>
+                </div>
+              </Card>
+            </div>
           </div>
 
           {/* 卡牌网格 */}
@@ -463,7 +612,7 @@ export default function Home() {
       )}
 
       {/* 游戏结束 - 输入玩家名字 */}
-      {gameEnded && (
+      {gameEnded && !showLeaderboard && (
         <div className="text-center max-w-md mx-auto">
           <h1 className="text-5xl md:text-6xl font-black mb-6 memphis-border inline-block px-8 py-4 bg-white memphis-shadow" style={{ fontFamily: 'var(--font-poppins)' }}>
             🎉 通关！
