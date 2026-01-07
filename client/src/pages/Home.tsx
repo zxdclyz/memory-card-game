@@ -394,7 +394,7 @@ export default function Home() {
         <div className="text-center">
           <div className="mb-8">
             <h1 className="text-6xl md:text-7xl font-black mb-3 memphis-border inline-block px-10 py-5 bg-white memphis-shadow transform -rotate-2" style={{ fontFamily: 'var(--font-poppins)' }}>
-              记忆翻牌
+              技能翻牌
             </h1>
             <p className="text-xl md:text-2xl mt-6 font-bold text-gray-800" style={{ fontFamily: 'var(--font-poppins)' }}>
               找到所有配对的卡牌！
@@ -570,7 +570,7 @@ export default function Home() {
                 onClick={() => handleCardClick(card.id)}
                 className={`
                   aspect-square cursor-pointer memphis-border
-                  transition-all duration-200
+                  transition-all duration-200 flex items-center justify-center
                   ${!card.isFlipped && !card.isMatched ? 'hover:-translate-y-1 active:translate-y-0 bg-white' : card.color}
                   ${card.isMatched ? 'animate-explode' : ''}
                 `}
@@ -581,20 +581,15 @@ export default function Home() {
                   backgroundPosition: 'center'
                 }}
               >
-                <span 
-                  className="drop-shadow-lg" 
+                <div 
+                  className="drop-shadow-lg w-full h-full flex items-center justify-center"
                   style={{ 
-                    fontFamily: 'var(--font-fredoka)',
-                    fontSize: '3.5rem',
-                    lineHeight: '1',
-                    height: '3.5rem',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center'
+                    fontSize: '4rem',
+                    lineHeight: '1'
                   }}
                 >
-                  {card.isFlipped || card.isMatched ? card.symbol : '?'}
-                </span>
+                  {card.isFlipped || card.isMatched ? card.symbol : '🔍'}
+                </div>
               </div>
             ))}
           </div>
