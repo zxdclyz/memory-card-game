@@ -17,6 +17,14 @@ import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { toast } from "sonner";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from "@/components/ui/dialog";
 
 // 卡牌图案数据 - 使用emoji作为简单图案
 const cardSymbols = ["🌟", "💖", "⚡", "🎨", "🎵", "🔥", "💎", "🌈"];
@@ -39,6 +47,7 @@ interface CardType {
   color: string;
   isFlipped: boolean;
   isMatched: boolean;
+  isHalfShown?: boolean; // Half-shown state for random show power-up
 }
 
 interface ScoreRecord {
@@ -66,73 +75,103 @@ export default function Home() {
   const [hasUsedRandomShow, setHasUsedRandomShow] = useState(false);
   const [sessionId, setSessionId] = useState<string>("");
 
-  // 从API获取排行榜数据
+  // 从API或localStorage获取排行榜数据
   useEffect(() => {
     fetchScores();
   }, []);
 
-  // 获取排行榜
+  // 获取排行榜（自动降级到localStorage）
   const fetchScores = async () => {
     try {
       const response = await fetch("/api/scores");
       if (response.ok) {
         const data = await response.json();
         setScores(data.slice(0, 10)); // Only show top 10
+        return;
       }
     } catch (error) {
-      console.error("Failed to fetch scores:", error);
-      toast.error("加载排行榜失败");
+      console.log("API not available, using localStorage");
+    }
+    
+    // Fallback to localStorage
+    try {
+      const stored = localStorage.getItem("leaderboard");
+      if (stored) {
+        const data = JSON.parse(stored);
+        setScores(data.slice(0, 10));
+      }
+    } catch (error) {
+      console.error("Failed to load scores:", error);
     }
   };
 
-  // 提交成绩到服务器
+  // 提交成绩（自动降级到localStorage）
   const submitScore = async () => {
     if (!playerName.trim()) {
       toast.error("请输入玩家名字");
       return;
     }
 
-    if (!sessionId) {
-      toast.error("游戏会话无效，请重新开始");
-      return;
+    const newScore: ScoreRecord = {
+      playerName: playerName.trim(),
+      time: elapsedTime,
+      timestamp: Date.now(),
+    };
+
+    // Try API first
+    if (sessionId) {
+      try {
+        const response = await fetch("/api/scores", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            playerName: newScore.playerName,
+            time: newScore.time,
+            sessionId,
+          }),
+        });
+
+        if (response.ok) {
+          toast.success("成绩已保存！");
+          setPlayerName("");
+          await fetchScores();
+          setShowLeaderboard(true);
+          return;
+        }
+      } catch (error) {
+        console.log("API not available, using localStorage");
+      }
     }
 
+    // Fallback to localStorage
     try {
-      const response = await fetch("/api/scores", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          playerName: playerName.trim(),
-          time: elapsedTime,
-          sessionId,
-        }),
-      });
-
-      if (response.ok) {
-        toast.success("成绩已保存！");
-        setPlayerName("");
-        // Refresh leaderboard
-        await fetchScores();
-        setShowLeaderboard(true);
-      } else {
-        const data = await response.json();
-        toast.error(data.error || "保存失败，请重试");
-      }
+      const stored = localStorage.getItem("leaderboard");
+      const scores = stored ? JSON.parse(stored) : [];
+      scores.push(newScore);
+      scores.sort((a: ScoreRecord, b: ScoreRecord) => a.time - b.time);
+      const top100 = scores.slice(0, 100);
+      localStorage.setItem("leaderboard", JSON.stringify(top100));
+      
+      toast.success("成绩已保存到本地！");
+      setPlayerName("");
+      await fetchScores();
+      setShowLeaderboard(true);
     } catch (error) {
-      console.error("Failed to submit score:", error);
-      toast.error("网络错误，请重试");
+      console.error("Failed to save score:", error);
+      toast.error("保存失败，请重试");
     }
   };
 
-  // 清除排行榜（需要管理员密码）
+  // 清除排行榜（自动降级到localStorage）
   const clearLeaderboard = async () => {
     const password = prompt("请输入管理员密码：");
     if (!password) {
       return;
     }
 
+    // Try API first
     try {
       const response = await fetch("/api/scores", {
         method: "DELETE",
@@ -145,33 +184,45 @@ export default function Home() {
       if (response.ok) {
         toast.success("排行榜已清除！");
         setScores([]);
+        return;
       } else {
         const data = await response.json();
         toast.error(data.error || "密码错误");
+        return;
       }
     } catch (error) {
-      console.error("Failed to clear leaderboard:", error);
-      toast.error("清除失败，请重试");
+      console.log("API not available, clearing localStorage");
+    }
+
+    // Fallback to localStorage (no password check)
+    if (password === "admin123") {
+      localStorage.removeItem("leaderboard");
+      setScores([]);
+      toast.success("本地排行榜已清除！");
+    } else {
+      toast.error("密码错误");
     }
   };
 
-  // 初始化游戏
+  // 初始化游戏（自动降级到本地模式）
   const initGame = async () => {
+    // Try to get session from API
     try {
-      // 从服务器获取游戏会话
       const response = await fetch("/api/game/start", {
         method: "POST",
       });
 
-      if (!response.ok) {
-        toast.error("启动游戏失败，请重试");
-        return;
+      if (response.ok) {
+        const { sessionId: newSessionId } = await response.json();
+        setSessionId(newSessionId);
       }
+    } catch (error) {
+      console.log("API not available, running in local mode");
+      setSessionId(""); // Empty session for local mode
+    }
 
-      const { sessionId: newSessionId } = await response.json();
-      setSessionId(newSessionId);
-
-      const gameCards: CardType[] = [];
+    // Initialize game cards
+    const gameCards: CardType[] = [];
       cardSymbols.forEach((symbol, index) => {
         // 每个图案创建两张卡牌
         gameCards.push({
@@ -205,19 +256,15 @@ export default function Home() {
       setIsUsingPowerUp(false);
       setHasUsedAutoMatch(false);
       setHasUsedRandomShow(false);
-    } catch (error) {
-      console.error("Failed to start game:", error);
-      toast.error("网络错误，请重试");
-    }
   };
 
-  // 计时器
+  // 计时器（精确到10毫秒）
   useEffect(() => {
     if (!gameStarted || matches === cardSymbols.length) return;
     
     const timer = setInterval(() => {
-      setElapsedTime(Math.floor((Date.now() - startTime) / 1000));
-    }, 1000);
+      setElapsedTime((Date.now() - startTime) / 1000); // 保留小数
+    }, 10); // 每10ms更新一次
     
     return () => clearInterval(timer);
   }, [gameStarted, matches, startTime]);
@@ -233,7 +280,7 @@ export default function Home() {
     const newFlipped = [...flippedCards, id];
     setFlippedCards(newFlipped);
 
-    // 翻转卡牌
+    // 翻转卡牌（保持半展示状态）
     setCards(prev => prev.map(card => 
       card.id === id ? { ...card, isFlipped: true } : card
     ));
@@ -248,11 +295,11 @@ export default function Home() {
       const secondCard = cards.find(c => c.id === secondId);
 
       if (firstCard?.symbol === secondCard?.symbol) {
-        // 配对成功
+        // 配对成功 - 清除半展示状态
         setTimeout(() => {
           setCards(prev => prev.map(card =>
             card.id === firstId || card.id === secondId
-              ? { ...card, isMatched: true }
+              ? { ...card, isMatched: true, isHalfShown: false }
               : card
           ));
           setMatches(prev => prev + 1);
@@ -263,16 +310,18 @@ export default function Home() {
           });
         }, 600);
       } else {
-        // 配对失败
+        // 配对失败 - 翻回去但保持半展示状态
         setTimeout(() => {
-          setCards(prev => prev.map(card =>
-            card.id === firstId || card.id === secondId
-              ? { ...card, isFlipped: false }
-              : card
-          ));
+          setCards(prev => prev.map(card => {
+            if (card.id === firstId || card.id === secondId) {
+              // 翻回去，但保留 isHalfShown 状态
+              return { ...card, isFlipped: false };
+            }
+            return card;
+          }));
           setFlippedCards([]);
           setIsChecking(false);
-        }, 1000);
+        }, 800); // 降低到800ms，节奏更快
       }
     }
   };
@@ -378,11 +427,11 @@ export default function Home() {
     
     toast.success("✨ 自动配对成功！", { duration: 1500 });
     
-    // 短暂延迟后标记为已匹配
+    // 短暂延迟后标记为已匹配，清除半展示状态
     setTimeout(() => {
       setCards(prev => prev.map(card =>
         card.id === matchPair.id || card.id === pairCard.id
-          ? { ...card, isMatched: true }
+          ? { ...card, isMatched: true, isHalfShown: false }
           : card
       ));
       setMatches(prev => prev + 1);
@@ -422,20 +471,24 @@ export default function Home() {
     }
     
     setHasUsedRandomShow(true);
-    toast.success("👀 随机展示两张卡片！", { duration: 1500 });
+    toast.success("👀 随机展示两张卡片（显示一半）！", { duration: 2000 });
     
-    // 翻开选中的卡片
+    // 设置为半展示状态（不是完全翻开）
     setCards(prev => prev.map(card =>
       selectedCards.some(c => c.id === card.id)
-        ? { ...card, isFlipped: true }
+        ? { ...card, isHalfShown: true }
         : card
     ));
   };
 
   // 格式化时间
-  const formatTime = (seconds: number) => {
+  const formatTime = (seconds: number, showMs = false) => {
     const mins = Math.floor(seconds / 60);
-    const secs = seconds % 60;
+    const secs = Math.floor(seconds % 60);
+    if (showMs) {
+      const ms = Math.floor((seconds % 1) * 100); // 显示两位毫秒
+      return `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}.${ms.toString().padStart(2, '0')}`;
+    }
     return `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
   };
 
@@ -452,6 +505,73 @@ export default function Home() {
       {/* 装饰性几何图形 */}
       <div className="absolute top-10 left-10 w-16 h-16 bg-[oklch(0.65_0.25_330)] rotate-45 animate-spin-slow opacity-10" style={{ animationDuration: '20s' }} />
       <div className="absolute bottom-20 right-10 w-12 h-12 rounded-full bg-[oklch(0.75_0.20_180)] animate-bounce opacity-10" style={{ animationDuration: '3s' }} />
+
+      {/* 玩法说明按钮 - 固定在右上角 */}
+      <Dialog>
+        <DialogTrigger asChild>
+          <Button
+            size="lg"
+            className="fixed top-4 right-4 z-50 px-6 py-5 memphis-border memphis-shadow hover:translate-x-1 hover:translate-y-1 hover:shadow-none transition-all bg-[oklch(0.85_0.25_90)] text-gray-800 font-black rounded-none"
+          >
+            ❓ 玩法说明
+          </Button>
+        </DialogTrigger>
+        <DialogContent className="memphis-border bg-white max-w-md">
+          <DialogHeader>
+            <DialogTitle className="text-2xl font-black mb-4">
+              🎮 玩法说明
+            </DialogTitle>
+          </DialogHeader>
+          
+          <div className="space-y-4 text-left">
+            {/* 基本规则 */}
+            <div>
+              <h3 className="text-lg font-bold mb-2 text-[oklch(0.65_0.25_330)]">📖 基本规则</h3>
+              <ul className="space-y-1 text-sm text-gray-700">
+                <li>• 找到两张<strong>相同符号</strong>的卡牌配对</li>
+                <li>• 用<strong>最短时间</strong>完成所有配对</li>
+              </ul>
+            </div>
+            
+            {/* 道具说明 */}
+            <div>
+              <h3 className="text-lg font-bold mb-2 text-[oklch(0.75_0.20_180)]">🎮 道具说明</h3>
+              <div className="space-y-2">
+                <div className="p-2 bg-gray-50 rounded memphis-border">
+                  <div className="flex items-center gap-2">
+                    <span className="text-xl">🔮</span>
+                    <div>
+                      <strong className="text-sm">快速查看</strong>
+                      <p className="text-xs text-gray-600">快速翻开所有卡牌</p>
+                    </div>
+                  </div>
+                </div>
+                
+                <div className="p-2 bg-gray-50 rounded memphis-border">
+                  <div className="flex items-center gap-2">
+                    <span className="text-xl">✨</span>
+                    <div>
+                      <strong className="text-sm">自动配对</strong>
+                      <p className="text-xs text-gray-600">自动配对一组卡牌</p>
+                    </div>
+                  </div>
+                </div>
+                
+                <div className="p-2 bg-gray-50 rounded memphis-border">
+                  <div className="flex items-center gap-2">
+                    <span className="text-xl">👀</span>
+                    <div>
+                      <strong className="text-sm">随机展示</strong>
+                      <p className="text-xs text-gray-600">模糊显示两张卡牌（黄色边框）</p>
+                    </div>
+                  </div>
+                </div>
+              </div>
+              <p className="text-xs text-yellow-700 mt-2 font-semibold">⚠️ 每种道具每局只能使用一次！</p>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
 
       {/* 主菜单 - 显示排行榜 */}
       {!gameStarted && !showLeaderboard && (
@@ -476,7 +596,7 @@ export default function Home() {
                       <span className="font-bold">#{index + 1}</span>
                       <span className="font-bold">{score.playerName}</span>
                       <span className="text-lg font-black" style={{ color: 'oklch(0.65 0.25 330)' }}>
-                        {formatTime(score.time)}
+                        {formatTime(score.time, true)}
                       </span>
                     </div>
                   ))}
@@ -518,7 +638,7 @@ export default function Home() {
                   <span className="font-black text-2xl w-12">{index + 1}</span>
                   <span className="font-bold flex-1 text-left">{score.playerName}</span>
                   <span className="text-2xl font-black" style={{ color: 'oklch(0.65 0.25 330)' }}>
-                    {formatTime(score.time)}
+                    {formatTime(score.time, true)}
                   </span>
                 </div>
               ))}
@@ -620,26 +740,29 @@ export default function Home() {
                 key={card.id}
                 onClick={() => handleCardClick(card.id)}
                 className={`
-                  aspect-square cursor-pointer memphis-border
+                  aspect-square cursor-pointer memphis-border relative overflow-hidden
                   transition-all duration-200 flex items-center justify-center
-                  ${!card.isFlipped && !card.isMatched ? 'hover:-translate-y-1 active:translate-y-0 bg-white' : card.color}
+                  ${!card.isFlipped && !card.isMatched && !card.isHalfShown ? 'hover:-translate-y-1 active:translate-y-0 bg-white' : card.color}
                   ${card.isMatched ? 'animate-explode' : ''}
+                  ${card.isHalfShown ? 'ring-4 ring-yellow-400 ring-opacity-70 shadow-lg shadow-yellow-400/50' : ''}
                 `}
                 style={{
                   transform: `rotate(${(index % 3 - 1) * 2}deg)`,
-                  backgroundImage: card.isFlipped || card.isMatched ? 'none' : 'url(/images/card-back-pattern.png)',
+                  backgroundImage: card.isFlipped || card.isMatched || card.isHalfShown ? 'none' : 'url(/images/card-back-pattern.png)',
                   backgroundSize: 'cover',
                   backgroundPosition: 'center'
                 }}
               >
                 <div 
-                  className="drop-shadow-lg w-full h-full flex items-center justify-center"
+                  className={`drop-shadow-lg w-full h-full flex items-center justify-center relative z-10 ${
+                    card.isHalfShown && !card.isFlipped ? 'blur-sm' : ''
+                  }`}
                   style={{ 
                     fontSize: '4rem',
                     lineHeight: '1'
                   }}
                 >
-                  {card.isFlipped || card.isMatched ? card.symbol : '🔍'}
+                  {card.isFlipped || card.isMatched || card.isHalfShown ? card.symbol : '🔍'}
                 </div>
               </div>
             ))}
@@ -666,7 +789,7 @@ export default function Home() {
 
           <Card className="p-8 memphis-border bg-white mb-6">
             <div className="text-4xl font-black mb-6" style={{ color: 'oklch(0.65 0.25 330)' }}>
-              {formatTime(elapsedTime)}
+              {formatTime(elapsedTime, true)}
             </div>
             <p className="text-lg font-bold mb-6 text-gray-800">请输入您的名字保存成绩：</p>
             <Input
