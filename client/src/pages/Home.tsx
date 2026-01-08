@@ -65,48 +65,63 @@ export default function Home() {
   const [hasUsedAutoMatch, setHasUsedAutoMatch] = useState(false);
   const [hasUsedRandomShow, setHasUsedRandomShow] = useState(false);
 
-  // 初始化排行榜数据
+  // 从API获取排行榜数据
   useEffect(() => {
-    const savedScores = localStorage.getItem("memoryGameScores");
-    if (savedScores) {
-      setScores(JSON.parse(savedScores));
-    }
+    fetchScores();
   }, []);
 
-  // 保存排行榜数据
-  const saveScores = (newScores: ScoreRecord[]) => {
-    const sorted = newScores.sort((a, b) => a.time - b.time).slice(0, 10);
-    setScores(sorted);
-    localStorage.setItem("memoryGameScores", JSON.stringify(sorted));
+  // 获取排行榜
+  const fetchScores = async () => {
+    try {
+      const response = await fetch("/api/scores");
+      if (response.ok) {
+        const data = await response.json();
+        setScores(data.slice(0, 10)); // Only show top 10
+      }
+    } catch (error) {
+      console.error("Failed to fetch scores:", error);
+      toast.error("加载排行榜失败");
+    }
   };
 
-  // 提交成绩
-  const submitScore = () => {
+  // 提交成绩到服务器
+  const submitScore = async () => {
     if (!playerName.trim()) {
       toast.error("请输入玩家名字");
       return;
     }
 
-    const newRecord: ScoreRecord = {
-      playerName: playerName.trim(),
-      time: elapsedTime,
-      timestamp: Date.now(),
-    };
+    try {
+      const response = await fetch("/api/scores", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          playerName: playerName.trim(),
+          time: elapsedTime,
+        }),
+      });
 
-    const newScores = [...scores, newRecord];
-    saveScores(newScores);
-    toast.success("成绩已保存！");
-    setPlayerName("");
-    setShowLeaderboard(true);
+      if (response.ok) {
+        toast.success("成绩已保存！");
+        setPlayerName("");
+        // Refresh leaderboard
+        await fetchScores();
+        setShowLeaderboard(true);
+      } else {
+        toast.error("保存失败，请重试");
+      }
+    } catch (error) {
+      console.error("Failed to submit score:", error);
+      toast.error("网络错误，请重试");
+    }
   };
 
-  // 清除排行榜
+  // 清除排行榜（需要管理员权限，暂时注释掉）
   const clearLeaderboard = () => {
-    if (confirm("确定要清除所有排行榜数据吗？")) {
-      setScores([]);
-      localStorage.removeItem("memoryGameScores");
-      toast.success("排行榜已清除");
-    }
+    toast.error("该功能需要管理员权限");
+    // Note: You can implement admin authentication if needed
   };
 
   // 初始化游戏
