@@ -64,6 +64,7 @@ export default function Home() {
   const [isUsingPowerUp, setIsUsingPowerUp] = useState(false);
   const [hasUsedAutoMatch, setHasUsedAutoMatch] = useState(false);
   const [hasUsedRandomShow, setHasUsedRandomShow] = useState(false);
+  const [sessionId, setSessionId] = useState<string>("");
 
   // 从API获取排行榜数据
   useEffect(() => {
@@ -91,6 +92,11 @@ export default function Home() {
       return;
     }
 
+    if (!sessionId) {
+      toast.error("游戏会话无效，请重新开始");
+      return;
+    }
+
     try {
       const response = await fetch("/api/scores", {
         method: "POST",
@@ -100,6 +106,7 @@ export default function Home() {
         body: JSON.stringify({
           playerName: playerName.trim(),
           time: elapsedTime,
+          sessionId,
         }),
       });
 
@@ -110,7 +117,8 @@ export default function Home() {
         await fetchScores();
         setShowLeaderboard(true);
       } else {
-        toast.error("保存失败，请重试");
+        const data = await response.json();
+        toast.error(data.error || "保存失败，请重试");
       }
     } catch (error) {
       console.error("Failed to submit score:", error);
@@ -118,48 +126,89 @@ export default function Home() {
     }
   };
 
-  // 清除排行榜（需要管理员权限，暂时注释掉）
-  const clearLeaderboard = () => {
-    toast.error("该功能需要管理员权限");
-    // Note: You can implement admin authentication if needed
+  // 清除排行榜（需要管理员密码）
+  const clearLeaderboard = async () => {
+    const password = prompt("请输入管理员密码：");
+    if (!password) {
+      return;
+    }
+
+    try {
+      const response = await fetch("/api/scores", {
+        method: "DELETE",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ password }),
+      });
+
+      if (response.ok) {
+        toast.success("排行榜已清除！");
+        setScores([]);
+      } else {
+        const data = await response.json();
+        toast.error(data.error || "密码错误");
+      }
+    } catch (error) {
+      console.error("Failed to clear leaderboard:", error);
+      toast.error("清除失败，请重试");
+    }
   };
 
   // 初始化游戏
-  const initGame = () => {
-    const gameCards: CardType[] = [];
-    cardSymbols.forEach((symbol, index) => {
-      // 每个图案创建两张卡牌
-      gameCards.push({
-        id: index * 2,
-        symbol,
-        color: cardColors[index],
-        isFlipped: false,
-        isMatched: false,
+  const initGame = async () => {
+    try {
+      // 从服务器获取游戏会话
+      const response = await fetch("/api/game/start", {
+        method: "POST",
       });
-      gameCards.push({
-        id: index * 2 + 1,
-        symbol,
-        color: cardColors[index],
-        isFlipped: false,
-        isMatched: false,
+
+      if (!response.ok) {
+        toast.error("启动游戏失败，请重试");
+        return;
+      }
+
+      const { sessionId: newSessionId } = await response.json();
+      setSessionId(newSessionId);
+
+      const gameCards: CardType[] = [];
+      cardSymbols.forEach((symbol, index) => {
+        // 每个图案创建两张卡牌
+        gameCards.push({
+          id: index * 2,
+          symbol,
+          color: cardColors[index],
+          isFlipped: false,
+          isMatched: false,
+        });
+        gameCards.push({
+          id: index * 2 + 1,
+          symbol,
+          color: cardColors[index],
+          isFlipped: false,
+          isMatched: false,
+        });
       });
-    });
-    
-    // 洗牌
-    const shuffled = gameCards.sort(() => Math.random() - 0.5);
-    setCards(shuffled);
-    setFlippedCards([]);
-    setMoves(0);
-    setMatches(0);
-    setGameStarted(true);
-    setGameEnded(false);
-    setStartTime(Date.now());
-    setElapsedTime(0);
-    setShowLeaderboard(false);
-    setHasUsedPowerUp(false);
-    setIsUsingPowerUp(false);
-    setHasUsedAutoMatch(false);
-    setHasUsedRandomShow(false);
+      
+      // 洗牌
+      const shuffled = gameCards.sort(() => Math.random() - 0.5);
+      setCards(shuffled);
+      setFlippedCards([]);
+      setMoves(0);
+      setMatches(0);
+      setGameStarted(true);
+      setGameEnded(false);
+      setStartTime(Date.now());
+      setElapsedTime(0);
+      setShowLeaderboard(false);
+      setHasUsedPowerUp(false);
+      setIsUsingPowerUp(false);
+      setHasUsedAutoMatch(false);
+      setHasUsedRandomShow(false);
+    } catch (error) {
+      console.error("Failed to start game:", error);
+      toast.error("网络错误，请重试");
+    }
   };
 
   // 计时器
@@ -478,19 +527,6 @@ export default function Home() {
 
           <div className="flex gap-4 justify-center flex-wrap">
             <Button
-              onClick={() => {
-                setShowLeaderboard(false);
-                if (gameEnded) {
-                  setGameEnded(false);
-                }
-              }}
-              size="lg"
-              className="text-lg px-12 py-5 memphis-border memphis-shadow hover:translate-x-1 hover:translate-y-1 hover:shadow-none transition-all bg-[oklch(0.75_0.20_180)] text-white font-black rounded-none"
-              style={{ fontFamily: 'var(--font-poppins)' }}
-            >
-              返回主菜单
-            </Button>
-            <Button
               onClick={initGame}
               size="lg"
               className="text-lg px-12 py-5 memphis-border memphis-shadow hover:translate-x-1 hover:translate-y-1 hover:shadow-none transition-all bg-[oklch(0.65_0.25_330)] text-white font-black rounded-none"
@@ -506,23 +542,23 @@ export default function Home() {
       {gameStarted && !gameEnded && (
         <>
           {/* 游戏统计信息 */}
-          <div className="flex gap-4 mb-4 flex-wrap justify-center">
-            <Card className="px-8 py-4 memphis-border bg-white">
+          <div className="flex gap-2 mb-4 flex-wrap justify-center">
+            <Card className="w-24 py-2 memphis-border bg-white">
               <div className="text-center">
                 <div className="text-xs font-bold text-gray-600 uppercase tracking-wider">步数</div>
-                <div className="text-3xl font-black mt-2" style={{ fontFamily: 'var(--font-space)' }}>{moves}</div>
+                <div className="text-2xl font-black mt-1" style={{ fontFamily: 'var(--font-space)' }}>{moves}</div>
               </div>
             </Card>
-            <Card className="px-8 py-4 memphis-border bg-white">
+            <Card className="w-24 py-2 memphis-border bg-white">
               <div className="text-center">
                 <div className="text-xs font-bold text-gray-600 uppercase tracking-wider">配对</div>
-                <div className="text-3xl font-black mt-2" style={{ fontFamily: 'var(--font-space)' }}>{matches}/{cardSymbols.length}</div>
+                <div className="text-2xl font-black mt-1" style={{ fontFamily: 'var(--font-space)' }}>{matches}/{cardSymbols.length}</div>
               </div>
             </Card>
-            <Card className="px-8 py-4 memphis-border bg-white">
+            <Card className="w-28 py-2 memphis-border bg-white">
               <div className="text-center">
                 <div className="text-xs font-bold text-gray-600 uppercase tracking-wider">用时</div>
-                <div className="text-3xl font-black mt-2" style={{ fontFamily: 'var(--font-space)' }}>{formatTime(elapsedTime)}</div>
+                <div className="text-2xl font-black mt-1" style={{ fontFamily: 'var(--font-space)' }}>{formatTime(elapsedTime)}</div>
               </div>
             </Card>
           </div>

@@ -3,6 +3,7 @@ import { createServer } from "http";
 import path from "path";
 import { fileURLToPath } from "url";
 import fs from "fs/promises";
+import crypto from "crypto";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -10,10 +11,54 @@ const __dirname = path.dirname(__filename);
 // Path to scores file
 const SCORES_FILE = path.join(__dirname, "scores.json");
 
+// Secret key for signing (change this in production!)
+const SECRET_KEY = process.env.SECRET_KEY || "skill-card-game-secret-2024";
+
+// Admin password for clearing leaderboard (change this in production!)
+const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD || "admin123";
+
 interface ScoreRecord {
   playerName: string;
   time: number;
   timestamp: number;
+}
+
+interface GameSession {
+  sessionId: string;
+  startTime: number;
+  expiresAt: number;
+}
+
+// In-memory session storage (use Redis in production)
+const gameSessions = new Map<string, GameSession>();
+
+// Generate session ID
+function generateSessionId(): string {
+  return crypto.randomBytes(32).toString("hex");
+}
+
+// Create signature
+function createSignature(data: string): string {
+  return crypto.createHmac("sha256", SECRET_KEY).update(data).digest("hex");
+}
+
+// Verify signature
+function verifySignature(data: string, signature: string): boolean {
+  const expectedSignature = createSignature(data);
+  return crypto.timingSafeEqual(
+    Buffer.from(signature),
+    Buffer.from(expectedSignature)
+  );
+}
+
+// Clean expired sessions (run periodically)
+function cleanExpiredSessions() {
+  const now = Date.now();
+  gameSessions.forEach((session, sessionId) => {
+    if (session.expiresAt < now) {
+      gameSessions.delete(sessionId);
+    }
+  });
 }
 
 // Initialize scores file if not exists
@@ -60,7 +105,36 @@ async function startServer() {
   // Initialize scores file
   await initScoresFile();
 
+  // Clean expired sessions every 5 minutes
+  setInterval(cleanExpiredSessions, 5 * 60 * 1000);
+
   // API Routes
+  // POST /api/game/start - Start new game session
+  app.post("/api/game/start", (req, res) => {
+    try {
+      const sessionId = generateSessionId();
+      const startTime = Date.now();
+      const expiresAt = startTime + 15 * 60 * 1000; // 15 minutes
+
+      const session: GameSession = {
+        sessionId,
+        startTime,
+        expiresAt,
+      };
+
+      gameSessions.set(sessionId, session);
+
+      console.log(`🎮 New game session: ${sessionId}`);
+
+      res.json({
+        sessionId,
+        timestamp: startTime,
+      });
+    } catch (error) {
+      res.status(500).json({ error: "Failed to start game session" });
+    }
+  });
+
   // GET /api/scores - Get leaderboard
   app.get("/api/scores", async (_req, res) => {
     try {
@@ -71,15 +145,37 @@ async function startServer() {
     }
   });
 
-  // POST /api/scores - Submit new score
+  // POST /api/scores - Submit new score (with session validation)
   app.post("/api/scores", async (req, res) => {
     try {
-      const { playerName, time } = req.body;
+      const { playerName, time, sessionId } = req.body;
 
       // Validate input
-      if (!playerName || typeof time !== "number") {
+      if (!playerName || typeof time !== "number" || !sessionId) {
         return res.status(400).json({ error: "Invalid score data" });
       }
+
+      // Verify session exists and not expired
+      const session = gameSessions.get(sessionId);
+      if (!session) {
+        return res.status(401).json({ error: "Invalid or expired session" });
+      }
+
+      const now = Date.now();
+      if (session.expiresAt < now) {
+        gameSessions.delete(sessionId);
+        return res.status(401).json({ error: "Session expired" });
+      }
+
+      // Verify time is reasonable (must be after game started)
+      const gameElapsedTime = Math.floor((now - session.startTime) / 1000);
+      if (time > gameElapsedTime + 5) {
+        // Allow 5 seconds tolerance
+        return res.status(401).json({ error: "Invalid game time" });
+      }
+
+      // Delete session after use (one-time use)
+      gameSessions.delete(sessionId);
 
       // Get existing scores
       const scores = await getScores();
@@ -88,7 +184,7 @@ async function startServer() {
       const newScore: ScoreRecord = {
         playerName: playerName.trim(),
         time,
-        timestamp: Date.now(),
+        timestamp: now,
       };
 
       scores.push(newScore);
@@ -96,9 +192,34 @@ async function startServer() {
       // Save updated scores
       await saveScores(scores);
 
+      console.log(`✅ Score saved: ${playerName} - ${time}s`);
+
       res.json({ success: true, score: newScore });
     } catch (error) {
+      console.error("Error saving score:", error);
       res.status(500).json({ error: "Failed to save score" });
+    }
+  });
+
+  // DELETE /api/scores - Clear leaderboard (admin only)
+  app.delete("/api/scores", async (req, res) => {
+    try {
+      const { password } = req.body;
+
+      // Verify admin password
+      if (password !== ADMIN_PASSWORD) {
+        return res.status(403).json({ error: "密码错误" });
+      }
+
+      // Clear scores file
+      await fs.writeFile(SCORES_FILE, JSON.stringify([], null, 2));
+
+      console.log(`🗑️ Leaderboard cleared by admin`);
+
+      res.json({ success: true, message: "Leaderboard cleared" });
+    } catch (error) {
+      console.error("Error clearing leaderboard:", error);
+      res.status(500).json({ error: "Failed to clear leaderboard" });
     }
   });
 
