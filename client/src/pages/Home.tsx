@@ -483,12 +483,13 @@ export default function Home() {
 
   // 格式化时间
   const formatTime = (seconds: number, showMs = false) => {
+    if (showMs) {
+      // For leaderboard: show as seconds with 2 decimal places
+      return `${seconds.toFixed(2)}秒`;
+    }
+    // For game timer: show as mm:ss
     const mins = Math.floor(seconds / 60);
     const secs = Math.floor(seconds % 60);
-    if (showMs) {
-      const ms = Math.floor((seconds % 1) * 100); // 显示两位毫秒
-      return `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}.${ms.toString().padStart(2, '0')}`;
-    }
     return `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
   };
 

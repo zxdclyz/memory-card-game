@@ -186,14 +186,6 @@ async function startServer() {
         return res.status(401).json({ error: "Session expired" });
       }
 
-      // Verify time is reasonable (must be after game started)
-      // time is in milliseconds, so compare in milliseconds
-      const gameElapsedTime = now - session.startTime;
-      if (time > gameElapsedTime + 5000) {
-        // Allow 5 seconds tolerance
-        return res.status(401).json({ error: "Invalid game time" });
-      }
-
       // Delete session after use (one-time use)
       gameSessions.delete(sessionId);
 
@@ -211,7 +203,7 @@ async function startServer() {
         await saveScores(scores);
       });
 
-      console.log(`✅ Score saved: ${playerName} - ${time}ms`);
+      console.log(`✅ Score saved: ${playerName} - ${time}s`);
 
       res.json({ success: true, score: newScore });
     } catch (error) {
