@@ -32,6 +32,25 @@ interface GameSession {
 // In-memory session storage (use Redis in production)
 const gameSessions = new Map<string, GameSession>();
 
+// File operation queue for thread safety
+let fileOperationQueue: Promise<void> = Promise.resolve();
+
+/**
+ * Queue file operations to prevent race conditions
+ * Ensures all file reads/writes are serialized
+ */
+function queueFileOperation<T>(operation: () => Promise<T>): Promise<T> {
+  const promise = fileOperationQueue
+    .then(operation)
+    .catch((error) => {
+      console.error("File operation error:", error);
+      throw error;
+    });
+  // Continue queue even if current operation fails
+  fileOperationQueue = promise.then(() => {}, () => {});
+  return promise;
+}
+
 // Generate session ID
 function generateSessionId(): string {
   return crypto.randomBytes(32).toString("hex");
@@ -168,8 +187,9 @@ async function startServer() {
       }
 
       // Verify time is reasonable (must be after game started)
-      const gameElapsedTime = Math.floor((now - session.startTime) / 1000);
-      if (time > gameElapsedTime + 5) {
+      // time is in milliseconds, so compare in milliseconds
+      const gameElapsedTime = now - session.startTime;
+      if (time > gameElapsedTime + 5000) {
         // Allow 5 seconds tolerance
         return res.status(401).json({ error: "Invalid game time" });
       }
@@ -177,22 +197,21 @@ async function startServer() {
       // Delete session after use (one-time use)
       gameSessions.delete(sessionId);
 
-      // Get existing scores
-      const scores = await getScores();
-
-      // Add new score
+      // Create score record
       const newScore: ScoreRecord = {
         playerName: playerName.trim(),
         time,
         timestamp: now,
       };
 
-      scores.push(newScore);
+      // Queue file operation to prevent race conditions
+      await queueFileOperation(async () => {
+        const scores = await getScores();
+        scores.push(newScore);
+        await saveScores(scores);
+      });
 
-      // Save updated scores
-      await saveScores(scores);
-
-      console.log(`✅ Score saved: ${playerName} - ${time}s`);
+      console.log(`✅ Score saved: ${playerName} - ${time}ms`);
 
       res.json({ success: true, score: newScore });
     } catch (error) {
@@ -211,8 +230,10 @@ async function startServer() {
         return res.status(403).json({ error: "密码错误" });
       }
 
-      // Clear scores file
-      await fs.writeFile(SCORES_FILE, JSON.stringify([], null, 2));
+      // Queue file operation to prevent race conditions
+      await queueFileOperation(async () => {
+        await fs.writeFile(SCORES_FILE, JSON.stringify([], null, 2));
+      });
 
       console.log(`🗑️ Leaderboard cleared by admin`);
 
