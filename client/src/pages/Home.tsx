@@ -65,6 +65,7 @@ export default function Home() {
   const [gameStarted, setGameStarted] = useState(false);
   const [startTime, setStartTime] = useState<number>(0);
   const [elapsedTime, setElapsedTime] = useState(0);
+  const [finalTime, setFinalTime] = useState(0); // Store final time when game ends
   const [gameEnded, setGameEnded] = useState(false);
   const [playerName, setPlayerName] = useState("");
   const [scores, setScores] = useState<ScoreRecord[]>([]);
@@ -78,6 +79,12 @@ export default function Home() {
   // 从API或localStorage获取排行榜数据
   useEffect(() => {
     fetchScores();
+    
+    // Load saved player name
+    const savedName = localStorage.getItem('lastPlayerName');
+    if (savedName) {
+      setPlayerName(savedName);
+    }
   }, []);
 
   // 获取排行榜（自动降级到localStorage）
@@ -114,7 +121,7 @@ export default function Home() {
 
     const newScore: ScoreRecord = {
       playerName: playerName.trim(),
-      time: elapsedTime,
+      time: finalTime, // Use the saved final time
       timestamp: Date.now(),
     };
 
@@ -134,6 +141,9 @@ export default function Home() {
         });
 
         if (response.ok) {
+          // Save player name for next time
+          localStorage.setItem('lastPlayerName', newScore.playerName);
+          
           toast.success("成绩已保存！");
           setPlayerName("");
           await fetchScores();
@@ -153,6 +163,9 @@ export default function Home() {
       scores.sort((a: ScoreRecord, b: ScoreRecord) => a.time - b.time);
       const top100 = scores.slice(0, 100);
       localStorage.setItem("leaderboard", JSON.stringify(top100));
+      
+      // Save player name for next time
+      localStorage.setItem('lastPlayerName', newScore.playerName);
       
       toast.success("成绩已保存到本地！");
       setPlayerName("");
@@ -251,6 +264,7 @@ export default function Home() {
       setGameEnded(false);
       setStartTime(Date.now());
       setElapsedTime(0);
+      setFinalTime(0);
       setShowLeaderboard(false);
       setHasUsedPowerUp(false);
       setIsUsingPowerUp(false);
@@ -260,14 +274,14 @@ export default function Home() {
 
   // 计时器（精确到10毫秒）
   useEffect(() => {
-    if (!gameStarted || matches === cardSymbols.length) return;
+    if (!gameStarted || gameEnded) return;
     
     const timer = setInterval(() => {
       setElapsedTime((Date.now() - startTime) / 1000); // 保留小数
     }, 10); // 每10ms更新一次
     
     return () => clearInterval(timer);
-  }, [gameStarted, matches, startTime]);
+  }, [gameStarted, gameEnded, startTime]);
 
   // 翻牌逻辑
   const handleCardClick = (id: number) => {
@@ -328,15 +342,25 @@ export default function Home() {
 
   // 游戏胜利检测
   useEffect(() => {
-    if (matches === cardSymbols.length && gameStarted) {
+    if (matches === cardSymbols.length && gameStarted && !gameEnded) {
       setTimeout(() => {
+        const gameTime = (Date.now() - startTime) / 1000;
+        setFinalTime(gameTime); // Save final time permanently
+        setElapsedTime(gameTime); // Also update elapsed time for consistency
         setGameEnded(true);
-        toast.success(`🎉 恭喜通关！用时 ${elapsedTime} 秒！`, {
+        
+        // Auto-fill saved player name
+        const savedName = localStorage.getItem('lastPlayerName');
+        if (savedName && !playerName) {
+          setPlayerName(savedName);
+        }
+        
+        toast.success(`🎉 恭喜通关！用时 ${formatTime(gameTime, false)} ！`, {
           duration: 5000,
         });
       }, 500);
     }
-  }, [matches, gameStarted, elapsedTime]);
+  }, [matches, gameStarted, gameEnded, startTime, playerName]);
 
   // 快速查看道具 - 随机顺序翻开卡片，每张卡片独立计时后自动翻回去
   const usePowerUp = async () => {
@@ -507,14 +531,15 @@ export default function Home() {
       <div className="absolute top-10 left-10 w-16 h-16 bg-[oklch(0.65_0.25_330)] rotate-45 animate-spin-slow opacity-10" style={{ animationDuration: '20s' }} />
       <div className="absolute bottom-20 right-10 w-12 h-12 rounded-full bg-[oklch(0.75_0.20_180)] animate-bounce opacity-10" style={{ animationDuration: '3s' }} />
 
-      {/* 玩法说明按钮 - 固定在右上角 */}
+      {/* 玩法说明按钮 - 固定在右上角，手机上缩小 */}
       <Dialog>
         <DialogTrigger asChild>
           <Button
             size="lg"
-            className="fixed top-4 right-4 z-50 px-6 py-5 memphis-border memphis-shadow hover:translate-x-1 hover:translate-y-1 hover:shadow-none transition-all bg-[oklch(0.85_0.25_90)] text-gray-800 font-black rounded-none"
+            className="fixed top-3 right-3 md:top-4 md:right-4 z-50 px-3 py-3 md:px-6 md:py-5 memphis-border memphis-shadow hover:translate-x-1 hover:translate-y-1 hover:shadow-none transition-all bg-[oklch(0.85_0.25_90)] text-gray-800 font-black rounded-none text-sm md:text-base"
           >
-            ❓ 玩法说明
+            <span className="md:hidden">❓</span>
+            <span className="hidden md:inline">❓ 玩法说明</span>
           </Button>
         </DialogTrigger>
         <DialogContent className="memphis-border bg-white max-w-md">
@@ -790,7 +815,7 @@ export default function Home() {
 
           <Card className="p-8 memphis-border bg-white mb-6">
             <div className="text-4xl font-black mb-6" style={{ color: 'oklch(0.65 0.25 330)' }}>
-              {formatTime(elapsedTime, true)}
+              {formatTime(finalTime, true)}
             </div>
             <p className="text-lg font-bold mb-6 text-gray-800">请输入您的名字保存成绩：</p>
             <Input
